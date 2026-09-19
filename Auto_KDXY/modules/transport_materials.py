@@ -1,3 +1,4 @@
+from pathlib import Path
 import os
 import time
 import random
@@ -32,7 +33,9 @@ class TransportWorker(QThread):
         self.reload_assets_config()
 
     def reload_assets_config(self):
-        self.assets_dir = r"F:\script_test\assets"
+        # 使用 pathlib 动态获取当前脚本所在目录，实现盘符解耦
+        base_dir = Path(__file__).resolve().parent.parent
+        self.assets_dir = str(base_dir / "assets")
         
         # ==========================================
         # [已注释] 取消 debug 截图文件夹的创建逻辑
@@ -196,17 +199,75 @@ class TransportWorker(QThread):
         self.press_key(0x4D)
         time.sleep(0.5)
 
-        self.log_signal.emit("⏳ 等待移动中 (最小 10 秒)...")
+        self.log_signal.emit("⏳ 等待移动中 (最小 3 秒)...")
         start_wait = time.time()
-        while time.time() - start_wait < 10.0:
+        while time.time() - start_wait < 3.0:
             if not self._is_running: return False
             time.sleep(0.1)
             
-        self.log_signal.emit("📌 [NPC00 阶段]：查找 NPC0 头部图标...")
-        pos = self.wait_to_find_pos(win_rect, self.npc_level_0_head_path, "NPC0头部图标", timeout=120, confidence=0.7)
+        # ==================== 🛠️ 详细 DEBUG 改动区域 ====================
+        self.log_signal.emit("📌 [NPC00 阶段]：开始循环查找 NPC0 头部图标 (带 Debug)...")
+        
+        target_path = self.npc_level_0_head_path
+        timeout = 120
+        confidence_threshold = 0.5
+        
+        start_time = time.time()
+        attempt_count = 0
+        max_seen_val = 0.0  # 记录整个过程中的最高相似度
+        
+        pos = None
+        while time.time() - start_time < timeout:
+            if not self._is_running: 
+                return False
+            
+            attempt_count += 1
+            
+            # 1. 检查文件是否存在
+            if not os.path.exists(target_path):
+                self.log_signal.emit(f"❌ [DEBUG 错误] 模板文件不存在: {target_path}")
+                break
+                
+            # 2. 截取游戏画面
+            screen = self.capture_screen_region(win_rect['x'], win_rect['y'], win_rect['w'], win_rect['h'])
+            if screen is None:
+                self.log_signal.emit("⚠️ [DEBUG 警告] 截图失败，窗口可能最小化或无效")
+                time.sleep(1.0)
+                continue
+                
+            # 3. 读取模板
+            template = cv2.imread(target_path, cv2.IMREAD_GRAYSCALE)
+            if template is None:
+                self.log_signal.emit(f"❌ [DEBUG 错误] 无法读取模板图片: {target_path}")
+                break
+                
+            # 4. 模板匹配计算
+            screen_gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
+            res = cv2.matchTemplate(screen_gray, template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(res)
+            
+            # 更新历史最高相似度
+            if max_val > max_seen_val:
+                max_seen_val = max_val
+                
+            # 每尝试 5 次（约 2.5 秒）打印一次当前的匹配进度日志，避免日志刷屏
+            if attempt_count % 5 == 0:
+                self.log_signal.emit(f"🔍 [DEBUG 轮询 #{attempt_count}] 当前最高相似度: {max_val:.4f} (要求阈值: {confidence_threshold})")
+            
+            # 5. 判断是否达标
+            if max_val >= confidence_threshold:
+                pos = (win_rect['x'] + max_loc[0] + template.shape[1]//2, 
+                       win_rect['y'] + max_loc[1] + template.shape[0]//2)
+                self.log_signal.emit(f"✅ [DEBUG 成功] 找到 NPC0 头部图标！坐标: {pos}, 最终相似度: {max_val:.4f}")
+                break
+                
+            time.sleep(0.5)
+            
         if not pos:
-            self.log_signal.emit("❌ 未能在规定时间内找到 NPC0 头部图标")
+            self.log_signal.emit(f"❌ [NPC00 阶段] 查找 NPC0 头部图标超时！整个过程中的【历史最高相似度】仅为: {max_seen_val:.4f}")
+            self.log_signal.emit("💡 排查建议：1. 检查游戏内该 NPC 头顶图标是否被遮挡；2. 适当调低 confidence 阈值（当前为 0.7）；3. 检查模板图片是否标准。")
             return False
+        # ==============================================================
 
         time.sleep(0.5)
         self.press_key(0x53) # 停止移动
@@ -323,7 +384,7 @@ class TransportWorker(QThread):
             if not self._is_running: return False
             time.sleep(0.1)
             
-        pos = self.wait_to_find_pos(win_rect, self.npc_level_4_head_path, "NPC4头部图标", timeout=120, confidence=0.7)
+        pos = self.wait_to_find_pos(win_rect, self.npc_level_4_head_path, "NPC4头部图标", timeout=120, confidence=0.65)
         if not pos:
             return False
 
