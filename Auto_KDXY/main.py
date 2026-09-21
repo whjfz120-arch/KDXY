@@ -15,6 +15,7 @@ import modules.transport_materials as transport_materials
 import modules.datang_exchange as datang_exchange
 import modules.auto_harvest as auto_harvest
 import modules.auto_draw_module as auto_draw_module
+import modules.eat_stone as eat_stone  # 1. 导入新增的吃石头模块
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -66,6 +67,9 @@ class MainWindow(QMainWindow):
             elif filename == "auto_harvest.py":
                 importlib.reload(auto_harvest)
                 self.rebuild_sub_module("harvest")
+            elif filename == "eat_stone.py":  # 2. 增加对 eat_stone 的热更新支持
+                importlib.reload(eat_stone)
+                self.rebuild_sub_module("eat_stone")
             elif filename == "auto_draw_module.py":
                 importlib.reload(auto_draw_module)
                 self.rebuild_sub_module("draw")
@@ -107,6 +111,15 @@ class MainWindow(QMainWindow):
                 self.harvest_module.set_hwnd(self.single_hwnd)
                 self.harvest_module.set_char_id(self.single_char_id)
 
+        elif module_type == "eat_stone":  # 3. 增加 eat_stone 的重新构建逻辑（假设类名也叫 EatStoneModule，请根据实际脚本类名调整）
+            old_index = 3
+            self.single_sub_tabs.removeTab(old_index)
+            self.eat_stone_module = eat_stone.EatStoneModule()
+            self.single_sub_tabs.insertTab(old_index, self.eat_stone_module, "💎 吃石头任务")
+            if self.single_hwnd:
+                self.eat_stone_module.set_hwnd(self.single_hwnd)
+                self.eat_stone_module.set_char_id(self.single_char_id)
+
         elif module_type == "draw":
             self.multi_layout.removeWidget(self.auto_draw_module)
             self.auto_draw_module.deleteLater()
@@ -145,10 +158,12 @@ class MainWindow(QMainWindow):
         self.transport_module = transport_materials.TransportModule()
         self.datang_module = datang_exchange.DatangExchangeModule()
         self.harvest_module = auto_harvest.HarvestModule()
+        self.eat_stone_module = eat_stone.EatStoneModule()  # 4. 实例化吃石头模块对象（注意：请确保 eat_stone.py 中包含 EatStoneModule 类，如果类名不同请自行修改）
 
         self.single_sub_tabs.addTab(self.transport_module, "📦 运送物资任务")
         self.single_sub_tabs.addTab(self.datang_module, "🔄 大唐物资兑换")
         self.single_sub_tabs.addTab(self.harvest_module, "🌿 自动收菜任务")
+        self.single_sub_tabs.addTab(self.eat_stone_module, "💎 吃石头任务")  # 5. 在单窗口子标签页中添加
         single_layout.addWidget(self.single_sub_tabs)
 
         self.top_tabs.addTab(tab_single, "💻 单窗口工具集")
@@ -205,17 +220,28 @@ class MainWindow(QMainWindow):
                 return
 
             self.single_hwnd = hwnd
+            
+            # 🌟 新增：绑定时自动将游戏窗口大小调整为 1600x900（保持原有的坐标位置，仅改变宽和高）
+            try:
+                # 获取当前窗口的位置 (x, y, right, bottom)
+                rect = win32gui.GetWindowRect(hwnd)
+                x, y = rect[0], rect[1]
+                # 设置新大小为 1600 * 900，win32con.SWP_NOZORDER 表示不改变窗口的 Z 轴顺序（层级）
+                win32gui.SetWindowPos(hwnd, win32con.HWND_TOP, x, y, 1600, 900, win32con.SWP_NOZORDER | win32con.SWP_SHOWWINDOW)
+            except Exception as e:
+                print(f"调整窗口大小异常: {e}")
+
             char_id = self.get_character_id_by_anchor(hwnd)
             self.single_char_id = char_id if char_id else "SP三月七"
 
             status_text = f"已绑定单窗口: [{title}]  |  👤 角色ID: {self.single_char_id}"
             self.lbl_single_status.setText(status_text)
             
-            for module in [self.transport_module, self.datang_module, self.harvest_module]:
+            for module in [self.transport_module, self.datang_module, self.harvest_module, self.eat_stone_module]:
                 if hasattr(module, "set_hwnd"): module.set_hwnd(hwnd)
                 if hasattr(module, "set_char_id"): module.set_char_id(self.single_char_id)
                 
-            QMessageBox.information(self, "绑定成功", f"成功绑定窗口: {title}\n识别到角色ID: {self.single_char_id}")
+            QMessageBox.information(self, "绑定成功", f"成功绑定窗口: {title}\n已自动调整分辨率为 1600x900\n识别到角色ID: {self.single_char_id}")
         else:
             QMessageBox.warning(self, "绑定失败", "未能获取当前窗口句柄。")
 
