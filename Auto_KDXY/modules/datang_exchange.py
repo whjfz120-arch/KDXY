@@ -6,6 +6,7 @@ import win32gui
 import win32api
 import win32con
 import win32ui
+from pathlib import Path
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QTextEdit, QLineEdit, QGroupBox)
 from PySide6.QtCore import Qt, QThread, Signal
@@ -25,8 +26,10 @@ class DatangWorker(QThread):
         self.reload_assets_config()
 
     def reload_assets_config(self):
-        self.assets_dir = r"F:\script_test\assets"
-        self.debug_dir = os.path.join(self.assets_dir, "debug")
+        base_dir = Path(__file__).resolve().parent.parent 
+        
+        self.assets_dir = str(base_dir / "assets")
+        self.debug_dir = os.path.join(base_dir, "debug")
         os.makedirs(self.debug_dir, exist_ok=True)
         
         # 资源路径定义（已废弃 crown 和 boss_text，改用 icon01 / icon02）
@@ -254,27 +257,6 @@ class DatangWorker(QThread):
         res = cv2.matchTemplate(cv2.cvtColor(screen_crop, cv2.COLOR_BGR2GRAY), template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(res)
 
-        # ==========================================
-        # [已保留并注释] Debug 截图功能：以后如需开启，去掉下方代码段的注释即可
-        # ==========================================
-        # if save_debug:
-        #     try:
-        #         debug_img = screen_crop.copy()
-        #         th, tw = template.shape[:2]
-        #         if max_val >= confidence:
-        #             cv2.rectangle(debug_img, max_loc, (max_loc[0] + tw, max_loc[1] + th), (0, 255, 0), 2)
-        #             cv2.putText(debug_img, f"Match: {max_val:.2f} (PASS)", (max_loc[0], max_loc[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        #         else:
-        #             cv2.rectangle(debug_img, max_loc, (max_loc[0] + tw, max_loc[1] + th), (0, 0, 255), 2)
-        #             cv2.putText(debug_img, f"Best: {max_val:.2f} (FAIL)", (max_loc[0], max_loc[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-        #         
-        #         debug_filename = os.path.join(self.debug_dir, f"icon_debug_{int(time.time()*1000)}.png")
-        #         cv2.imwrite(debug_filename, debug_img)
-        #         self.log_signal.emit(f"📷 [Debug截图] 已保存图标查找截图至: {debug_filename}")
-        #     except Exception as e:
-        #         self.log_signal.emit(f"⚠️ 保存Debug截图异常: {e}")
-        # ==========================================
-
         if max_val >= confidence:
             pos_x = offset_x + max_loc[0] + template.shape[1]//2
             pos_y = offset_y + max_loc[1] + template.shape[0]//2
@@ -384,7 +366,6 @@ class DatangExchangeModule(QWidget):
         try:
             rect = win32gui.GetWindowRect(self.bound_hwnd)
             x, y = rect[0], rect[1]
-            # 使用 MoveWindow 设置窗口大小为 1600x900
             win32gui.MoveWindow(self.bound_hwnd, x, y, 1600, 900, True)
             self.log("🖥️ [分辨率调整] 已成功将绑定窗口重置为 1600x900 分辨率。")
         except Exception as e:
