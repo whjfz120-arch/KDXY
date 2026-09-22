@@ -57,7 +57,7 @@ class TransportWorker(QThread):
         # NPC04 相关资源
         self.npc_04_pos_path           = os.path.join(self.assets_dir, "npc04_pos.png")
         self.npc_level_4_head_path     = os.path.join(self.assets_dir, "npc_level_4_head.png")
-        self.npc_icon02_path           = os.path.join(self.assets_dir, "icon02.png") # 👈 新增 icon02.png 路径
+        self.npc_icon02_path           = os.path.join(self.assets_dir, "icon02.png")
         
         self.quest_related_path        = os.path.join(self.assets_dir, "quest_related.png")
         self.task_related_template_path = os.path.join(self.assets_dir, "task_related_template.png")
@@ -95,11 +95,29 @@ class TransportWorker(QThread):
             self.finished_signal.emit()
             return
 
-        self.log_signal.emit(f"🚀 开始执行任务 | 模式: {self.test_mode} | 角色: {self.char_id} | 目标轮数: {self.target_count if self.target_count else '无限循环'}")
+        self.log_signal.emit(f"🚀 开始执行任务 | 起始模式: {self.test_mode} | 角色: {self.char_id} | 目标轮数: {self.target_count if self.target_count else '无限循环'}")
         self.log_signal.emit(f"📌 已加载NPC坐标点 -> NPC00: {self.NPC_00_COORD} | NPC03: {self.NPC_03_COORD} | NPC04: {self.NPC_04_COORD}")
         
         completed_count = 0
         
+        # 📌 定义标准完整任务流的有序列表 (key, 对应执行函数, 名称描述)
+        steps_def = [
+            ("npc00", self.run_npc00_step, "NPC00 阶段"),
+            ("npc01", self.run_npc01_step, "NPC01 阶段"),
+            ("npc02", self.run_npc02_step, "NPC02 阶段"),
+            ("npc03", self.run_npc03_step, "NPC03 阶段"),
+            ("npc04", self.run_npc04_step, "NPC04 阶段"),
+            ("return_npc00", self.run_return_npc00_step, "NPC04 返回 NPC00 阶段")
+        ]
+        
+        # 自动计算如果用户选择了某一个单项测试，其在链条中的起始索引位置
+        start_index = 0
+        if self.test_mode != "full_chain":
+            for idx, (mode_key, _, _) in enumerate(steps_def):
+                if mode_key == self.test_mode:
+                    start_index = idx
+                    break
+
         while self._is_running:
             self.reload_assets_config()
             if self.target_count is not None and completed_count >= self.target_count:
@@ -114,21 +132,27 @@ class TransportWorker(QThread):
                 self.log_signal.emit("❌ 错误：无法获取窗口矩形位置！")
                 break
 
+            # 📌 核心逻辑：如果是第一轮且指定了单项测试，则从对应的索引开始切片流送；后续轮次或全流程从 0 开始完整闭环
+            current_exec_steps = steps_def if completed_count > 1 or self.test_mode == "full_chain" else steps_def[start_index:]
+
             success = True
-            if self.test_mode == "full_chain":
-                success = self.run_full_chain_workflow(win_rect)
-            elif self.test_mode == "npc00":
-                success = self.run_npc00_step(win_rect)
-            elif self.test_mode == "npc01":
-                success = self.run_npc01_step(win_rect)
-            elif self.test_mode == "npc02":
-                success = self.run_npc02_step(win_rect)
-            elif self.test_mode == "npc03":
-                success = self.run_npc03_step(win_rect)
-            elif self.test_mode == "npc04":
-                success = self.run_npc04_step(win_rect)
-            elif self.test_mode == "return_npc00":
-                success = self.run_return_npc00_step(win_rect)
+            for mode_key, step_func, step_name in current_exec_steps:
+                if not self._is_running:
+                    success = False
+                    break
+                
+                self.log_signal.emit(f"📍 [自动流送] 正在执行: {step_name}")
+                
+                # 执行对应的步骤函数
+                if not step_func(win_rect):
+                    self.log_signal.emit(f"❌ 步骤 {step_name} 执行失败或中断。")
+                    success = False
+                    break
+                
+                # 步骤之间的缓冲延迟
+                if not self.interruptible_sleep(2.0):
+                    success = False
+                    break
 
             if not self._is_running:
                 self.log_signal.emit("🛑 收到停止指令，正在安全退出循环...")
@@ -138,10 +162,7 @@ class TransportWorker(QThread):
                 self.log_signal.emit(f"✅ 第 {completed_count} 轮循环执行成功！")
                 self.stats_signal.emit(completed_count)
             else:
-                self.log_signal.emit(f"❌ 第 {completed_count} 轮循环执行失败或中断。")
-                break
-            
-            if self.test_mode != "full_chain":
+                self.log_signal.emit(f"❌ 第 {completed_count} 轮循环执行异常中断。")
                 break
             
             if not self.interruptible_sleep(1.0):
@@ -149,33 +170,6 @@ class TransportWorker(QThread):
             
         self.log_signal.emit("🏁 任务线程已安全退出。")
         self.finished_signal.emit()
-
-    def run_full_chain_workflow(self, win_rect):
-        self.log_signal.emit("📍 [全流程] 执行阶段 1/6: NPC00")
-        if not self.run_npc00_step(win_rect): return False
-        if not self.interruptible_sleep(2.0): return False
-
-        self.log_signal.emit("📍 [全流程] 执行阶段 2/6: NPC01")
-        if not self.run_npc01_step(win_rect): return False
-        if not self.interruptible_sleep(2.0): return False
-
-        self.log_signal.emit("📍 [全流程] 执行阶段 3/6: NPC02")
-        if not self.run_npc02_step(win_rect): return False
-        if not self.interruptible_sleep(2.0): return False
-
-        self.log_signal.emit("📍 [全流程] 执行阶段 4/6: NPC03")
-        if not self.run_npc03_step(win_rect): return False
-        if not self.interruptible_sleep(2.0): return False
-
-        self.log_signal.emit("📍 [全流程] 执行阶段 5/6: NPC04")
-        if not self.run_npc04_step(win_rect): return False
-        if not self.interruptible_sleep(2.0): return False
-
-        self.log_signal.emit("📍 [全流程] 执行阶段 6/6: NPC04 返回 NPC00")
-        if not self.run_return_npc00_step(win_rect): return False
-        if not self.interruptible_sleep(2.0): return False
-
-        return True
 
     def run_npc00_step(self, win_rect):
         self.activate_window()
@@ -359,7 +353,6 @@ class TransportWorker(QThread):
             if not self._is_running: return False
             time.sleep(0.1)
             
-        # 📌 改动：查找 icon02.png 而不是原本的头部图标
         pos = self.wait_to_find_pos(win_rect, self.npc_icon02_path, "icon02图标", timeout=120, confidence=0.65)
         if not pos:
             return False
@@ -368,7 +361,6 @@ class TransportWorker(QThread):
         self.press_key(0x53)
         time.sleep(0.3)
 
-        # 📌 改动：点击查找到的目标点下方 100 像素位置
         target_x = pos[0]
         target_y = pos[1] + 100
         self.log_signal.emit(f"🖱️ [NPC04 阶段] 找到 icon02 坐标: {pos}，在其下方 100 像素处 ({target_x}, {target_y}) 执行双击...")
@@ -538,11 +530,11 @@ class TransportModule(QWidget):
         
         self.combo_mode = QComboBox()
         self.combo_mode.addItem("🚀 完整全流程循环 (NPC00->NPC01->NPC02->NPC03->NPC04->返回NPC00)", "full_chain")
-        self.combo_mode.addItem("测试 NPC00 阶段", "npc00")
-        self.combo_mode.addItem("测试 NPC01 阶段", "npc01")
-        self.combo_mode.addItem("测试 NPC02 阶段", "npc02")
-        self.combo_mode.addItem("测试 NPC03 阶段 (45秒延迟)", "npc03")
-        self.combo_mode.addItem("测试 NPC04 阶段", "npc04")
+        self.combo_mode.addItem("测试 NPC00 阶段 (并自动流送到后续)", "npc00")
+        self.combo_mode.addItem("测试 NPC01 阶段 (并自动流送到后续)", "npc01")
+        self.combo_mode.addItem("测试 NPC02 阶段 (并自动流送到后续)", "npc02")
+        self.combo_mode.addItem("测试 NPC03 阶段 (并自动流送到后续)", "npc03")
+        self.combo_mode.addItem("测试 NPC04 阶段 (并自动流送到后续)", "npc04")
         self.combo_mode.addItem("测试 NPC04 返回 NPC00 独立流程", "return_npc00")
         layout.addWidget(self.combo_mode)
 
