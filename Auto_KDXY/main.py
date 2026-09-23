@@ -15,13 +15,13 @@ import modules.transport_materials as transport_materials
 import modules.datang_exchange as datang_exchange
 import modules.auto_harvest as auto_harvest
 import modules.auto_draw_module as auto_draw_module
-import modules.eat_stone as eat_stone  # 1. 导入新增的吃石头模块
+import modules.eat_stone as eat_stone  
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("游戏自动化多功能总控台 (支持热更新)")
-        self.resize(1000, 700)
+        self.resize(1100, 750)
         
         self.single_hwnd = None
         self.single_char_id = "未知"
@@ -61,13 +61,14 @@ class MainWindow(QMainWindow):
             if filename == "transport_materials.py":
                 importlib.reload(transport_materials)
                 self.rebuild_sub_module("transport")
+                self.rebuild_sub_module("transport_multi") # 同时支持多窗口运送物资热重载
             elif filename == "datang_exchange.py":
                 importlib.reload(datang_exchange)
                 self.rebuild_sub_module("datang")
             elif filename == "auto_harvest.py":
                 importlib.reload(auto_harvest)
                 self.rebuild_sub_module("harvest")
-            elif filename == "eat_stone.py":  # 2. 增加对 eat_stone 的热更新支持
+            elif filename == "eat_stone.py":
                 importlib.reload(eat_stone)
                 self.rebuild_sub_module("eat_stone")
             elif filename == "auto_draw_module.py":
@@ -87,11 +88,21 @@ class MainWindow(QMainWindow):
             old_index = 0
             self.single_sub_tabs.removeTab(old_index)
             self.transport_module = transport_materials.TransportModule()
-            self.single_sub_tabs.insertTab(old_index, self.transport_module, "📦 运送物资任务")
+            self.single_sub_tabs.insertTab(old_index, self.transport_module, "📦 运送物资任务 (单开)")
             self.single_sub_tabs.setCurrentIndex(old_index)
             if self.single_hwnd:
                 self.transport_module.set_hwnd(self.single_hwnd)
                 self.transport_module.set_char_id(self.single_char_id)
+
+        elif module_type == "transport_multi":
+            # 重建多窗口工具集中的运送物资模块
+            index = self.multi_sub_tabs.indexOf(self.transport_multi_module)
+            if index != -1:
+                self.multi_sub_tabs.removeTab(index)
+                self.transport_multi_module = transport_materials.TransportModule()
+                self.multi_sub_tabs.insertTab(index, self.transport_multi_module, "📦 运送物资任务 (多开 1600x900)")
+                if self.multi_hwnd_list:
+                    self.transport_multi_module.set_hwnd_list(self.multi_hwnd_list)
 
         elif module_type == "datang":
             old_index = 1
@@ -111,7 +122,7 @@ class MainWindow(QMainWindow):
                 self.harvest_module.set_hwnd(self.single_hwnd)
                 self.harvest_module.set_char_id(self.single_char_id)
 
-        elif module_type == "eat_stone":  # 3. 增加 eat_stone 的重新构建逻辑（假设类名也叫 EatStoneModule，请根据实际脚本类名调整）
+        elif module_type == "eat_stone":
             old_index = 3
             self.single_sub_tabs.removeTab(old_index)
             self.eat_stone_module = eat_stone.EatStoneModule()
@@ -121,12 +132,13 @@ class MainWindow(QMainWindow):
                 self.eat_stone_module.set_char_id(self.single_char_id)
 
         elif module_type == "draw":
-            self.multi_layout.removeWidget(self.auto_draw_module)
-            self.auto_draw_module.deleteLater()
-            self.auto_draw_module = auto_draw_module.AutoDrawModule()
-            self.multi_layout.addWidget(self.auto_draw_module)
-            if self.multi_hwnd_list:
-                self.auto_draw_module.set_hwnd_list(self.multi_hwnd_list)
+            index = self.multi_sub_tabs.indexOf(self.auto_draw_module)
+            if index != -1:
+                self.multi_sub_tabs.removeTab(index)
+                self.auto_draw_module = auto_draw_module.AutoDrawModule()
+                self.multi_sub_tabs.insertTab(index, self.auto_draw_module, "🎯 自动循环点击 (多开)")
+                if self.multi_hwnd_list:
+                    self.auto_draw_module.set_hwnd_list(self.multi_hwnd_list)
 
     def init_ui(self):
         central_widget = QWidget()
@@ -158,41 +170,44 @@ class MainWindow(QMainWindow):
         self.transport_module = transport_materials.TransportModule()
         self.datang_module = datang_exchange.DatangExchangeModule()
         self.harvest_module = auto_harvest.HarvestModule()
-        self.eat_stone_module = eat_stone.EatStoneModule()  # 4. 实例化吃石头模块对象（注意：请确保 eat_stone.py 中包含 EatStoneModule 类，如果类名不同请自行修改）
+        self.eat_stone_module = eat_stone.EatStoneModule()
 
-        self.single_sub_tabs.addTab(self.transport_module, "📦 运送物资任务")
+        self.single_sub_tabs.addTab(self.transport_module, "📦 运送物资任务 (单开)")
         self.single_sub_tabs.addTab(self.datang_module, "🔄 大唐物资兑换")
         self.single_sub_tabs.addTab(self.harvest_module, "🌿 自动收菜任务")
-        self.single_sub_tabs.addTab(self.eat_stone_module, "💎 吃石头任务")  # 5. 在单窗口子标签页中添加
+        self.single_sub_tabs.addTab(self.eat_stone_module, "💎 吃石头任务")
         single_layout.addWidget(self.single_sub_tabs)
 
         self.top_tabs.addTab(tab_single, "💻 单窗口工具集")
 
         # ----------------- 标签页 2：多窗口工具集 -----------------
         tab_multi = QWidget()
-        self.multi_layout = QVBoxLayout(tab_multi)
-        self.multi_layout.setContentsMargins(15, 15, 15, 15)
-        self.multi_layout.setSpacing(10)
+        multi_layout = QVBoxLayout(tab_multi)
+        multi_layout.setContentsMargins(15, 15, 15, 15)
+        multi_layout.setSpacing(10)
 
         multi_bind_layout = QHBoxLayout()
         self.btn_bind_multi = QPushButton("绑定所有游戏多开窗口")
         self.btn_bind_multi.clicked.connect(self.bind_multi_windows)
         multi_bind_layout.addWidget(self.btn_bind_multi)
 
-        self.btn_arrange_multi = QPushButton("📐 一键平铺排列窗口")
-        self.btn_arrange_multi.clicked.connect(self.arrange_windows)
-        multi_bind_layout.addWidget(self.btn_arrange_multi)
-
         self.lbl_multi_status = QLabel("未绑定多开窗口: [请点击左侧按钮自动枚举]")
         self.lbl_multi_status.setStyleSheet("color: #795548; font-weight: bold;")
         multi_bind_layout.addWidget(self.lbl_multi_status)
         multi_bind_layout.addStretch()
-        self.multi_layout.addLayout(multi_bind_layout)
+        multi_layout.addLayout(multi_bind_layout)
 
+        # 多窗口内部选项卡（包含运送物资多开版、自动点击多开版等）
+        self.multi_sub_tabs = QTabWidget()
+        self.transport_multi_module = transport_materials.TransportModule()
         self.auto_draw_module = auto_draw_module.AutoDrawModule()
-        self.multi_layout.addWidget(self.auto_draw_module)
 
+        self.multi_sub_tabs.addTab(self.transport_multi_module, "📦 运送物资任务 (多开 1600x900)")
+        self.multi_sub_tabs.addTab(self.auto_draw_module, "🎯 自动循环点击 (多开)")
+        
+        multi_layout.addWidget(self.multi_sub_tabs)
         self.top_tabs.addTab(tab_multi, "🖥️ 多窗口多开工具集")
+        
         main_layout.addWidget(self.top_tabs)
 
     def start_delayed_bind(self):
@@ -221,12 +236,10 @@ class MainWindow(QMainWindow):
 
             self.single_hwnd = hwnd
             
-            # 🌟 新增：绑定时自动将游戏窗口大小调整为 1600x900（保持原有的坐标位置，仅改变宽和高）
+            # 绑定时自动将单游戏窗口大小调整为 1600x900
             try:
-                # 获取当前窗口的位置 (x, y, right, bottom)
                 rect = win32gui.GetWindowRect(hwnd)
                 x, y = rect[0], rect[1]
-                # 设置新大小为 1600 * 900，win32con.SWP_NOZORDER 表示不改变窗口的 Z 轴顺序（层级）
                 win32gui.SetWindowPos(hwnd, win32con.HWND_TOP, x, y, 1600, 900, win32con.SWP_NOZORDER | win32con.SWP_SHOWWINDOW)
             except Exception as e:
                 print(f"调整窗口大小异常: {e}")
@@ -327,22 +340,14 @@ class MainWindow(QMainWindow):
 
         self.multi_hwnd_list = valid_hwnds
         self.lbl_multi_status.setText(f"已成功绑定多开窗口数: {len(valid_hwnds)} 个")
+        
+        # 将多开窗口句柄列表分发给多窗口工具集中的各个子模块
+        if hasattr(self.transport_multi_module, "set_hwnd_list"):
+            self.transport_multi_module.set_hwnd_list(valid_hwnds)
         if hasattr(self.auto_draw_module, "set_hwnd_list"):
             self.auto_draw_module.set_hwnd_list(valid_hwnds)
+            
         QMessageBox.information(self, "多开绑定完成", f"成功精准扫描并绑定了 {len(valid_hwnds)} 个有效游戏窗口！")
-
-    def arrange_windows(self):
-        if not self.multi_hwnd_list:
-            QMessageBox.warning(self, "排列提示", "尚未绑定任何多开游戏窗口！")
-            return
-        screen = QApplication.primaryScreen().geometry()
-        cols = 2 if len(self.multi_hwnd_list) <= 4 else 3
-        rows = (len(self.multi_hwnd_list) + cols - 1) // cols
-        win_w, win_h = screen.width() // cols, screen.height() // rows
-
-        for index, hwnd in enumerate(self.multi_hwnd_list):
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            win32gui.SetWindowPos(hwnd, win32con.HWND_TOP, (index % cols) * win_w, (index // cols) * win_h, win_w, win_h, win32con.SWP_SHOWWINDOW)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
