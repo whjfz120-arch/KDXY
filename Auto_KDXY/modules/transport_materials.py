@@ -288,8 +288,8 @@ class TransportWorker(QThread):
                 if self.double_click_template(win_rect, self.npc_level_1_path, 0.7):
                     time.sleep(0.5)
                     self.press_key(0x51)
-                    self.log_signal.emit(f"⏳ [{title}] [NPC01] 进入关卡，独立计时等待传送 (15秒)...")
-                    ws.timer_target = time.time() + 15.0
+                    self.log_signal.emit(f"⏳ [{title}] [NPC01] 进入关卡，独立计时等待传送 (25秒)...")
+                    ws.timer_target = time.time() + 25.0
                     self.change_state(ws, 'npc01_wait_task')
 
         elif state == 'npc01_wait_task':
@@ -298,8 +298,8 @@ class TransportWorker(QThread):
                 self.log_signal.emit(f"✅ [{title}] [NPC01] 成功点击“任务相关”，进入下一步...")
                 time.sleep(1.0)
                 self.change_state(ws, 'npc01_dingguo')
-            elif time.time() - ws.state_start_time > 10.0:
-                self.log_signal.emit(f"⚠️ [{title}] [NPC01] 寻找“任务相关”超时（>10秒），强制跳至下一步...")
+            elif time.time() - ws.state_start_time > 30.0:
+                self.log_signal.emit(f"⚠️ [{title}] [NPC01] 寻找“任务相关”超时（>30秒），强制跳至下一步...")
                 time.sleep(1.0)
                 self.change_state(ws, 'npc01_dingguo')
 
@@ -309,14 +309,14 @@ class TransportWorker(QThread):
                 self.log_signal.emit(f"✅ [{title}] [NPC01] 成功点击顶国任务，进入确认步骤...")
                 time.sleep(1.0)
                 self.change_state(ws, 'npc01_confirm')
-            elif time.time() - ws.state_start_time > 8.0:
-                self.log_signal.emit(f"⚠️ [{title}] [NPC01] 寻找顶国任务超时（>8秒），强制跳至确认步骤...")
+            elif time.time() - ws.state_start_time > 18.0:
+                self.log_signal.emit(f"⚠️ [{title}] [NPC01] 寻找顶国任务超时（>18秒），强制跳至确认步骤...")
                 time.sleep(1.0)
                 self.change_state(ws, 'npc01_confirm')
 
         elif state == 'npc01_confirm':
             self.log_signal.emit(f"🔍 [{title}] [NPC01] 正在查找并点击确认按钮...")
-            if self.click_confirm(win_rect) or (time.time() - ws.state_start_time > 5.0):
+            if self.click_confirm(win_rect):
                 self.log_signal.emit(f"✅ [{title}] [NPC01] 确认按钮完成，NPC01 阶段完成！等待其他窗口同步...")
                 ws.is_stage_finished = True
                 self.change_state(ws, 'npc01_completed')
@@ -331,17 +331,17 @@ class TransportWorker(QThread):
                 if self.double_click_template(win_rect, self.npc_level_2_path, 0.7):
                     time.sleep(1.0)
                     self.press_key(0x51)
-                    self.log_signal.emit(f"⏳ [{title}] [NPC02] 进入关卡，独立计时等待传送 (22秒)...")
-                    ws.timer_target = time.time() + 22.0
+                    self.log_signal.emit(f"⏳ [{title}] [NPC02] 进入关卡，独立计时等待传送 (40秒)...")
+                    ws.timer_target = time.time() + 40.0
                     self.change_state(ws, 'npc02_dingguo')
 
         elif state == 'npc02_dingguo':
-            if self.click_template_multi(win_rect, self.task_dingguo_paths, 0.7) or (time.time() - ws.state_start_time > 10.0):
+            if self.click_template_multi(win_rect, self.task_dingguo_paths, 0.7):
                 time.sleep(1.0)
                 self.change_state(ws, 'npc02_confirm')
 
         elif state == 'npc02_confirm':
-            if self.click_confirm(win_rect) or (time.time() - ws.state_start_time > 5.0):
+            if self.click_confirm(win_rect):
                 self.log_signal.emit(f"✅ [{title}] NPC02 阶段已完成，等待其他窗口同步...")
                 ws.is_stage_finished = True
                 self.change_state(ws, 'npc02_completed')
@@ -356,7 +356,7 @@ class TransportWorker(QThread):
                 self.hardware_double_click(pos[0], pos[1])
                 time.sleep(0.5)
                 self.press_key(0x4D)
-                wait_sec = 45.0
+                wait_sec = 48.0
                 self.log_signal.emit(f"⏳ [{title}] [NPC03] 跑路中，独立计时等待 {wait_sec} 秒...")
                 ws.timer_target = time.time() + wait_sec
                 self.change_state(ws, 'npc03_wait_move')
@@ -390,7 +390,7 @@ class TransportWorker(QThread):
                 self.hardware_double_click(pos[0], pos[1])
                 time.sleep(0.3)
                 self.press_key(0x4D)
-                wait_sec = 45.0
+                wait_sec = 48.0
                 self.log_signal.emit(f"⏳ [{title}] [NPC04] 跑路中，独立计时等待 {wait_sec} 秒...")
                 ws.timer_target = time.time() + wait_sec
                 self.change_state(ws, 'npc04_wait_move')

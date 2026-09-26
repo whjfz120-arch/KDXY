@@ -42,7 +42,12 @@ class AutoDrawWorker(QThread):
 
     def find_and_click_target(self, hwnd):
         """在单个窗口中查找目标图片并右键点击"""
-        template_path = os.path.join("assets", "chouchou.png")
+        # 获取当前脚本所在目录 (F:\KDXY-main\Auto_KDXY\modules)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # 通过 ".." 回退到上一级目录 (F:\KDXY-main\Auto_KDXY)，再找到 assets\chouchou.png
+        template_path = os.path.abspath(os.path.join(current_dir, "..", "assets", "chouchou.png"))
+        
         if not os.path.exists(template_path):
             self.log_signal.emit(f"⚠️ 模板文件不存在: {template_path}")
             return False
