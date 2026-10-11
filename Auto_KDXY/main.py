@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import sys
 import os
 import cv2
@@ -16,6 +17,7 @@ import modules.datang_exchange as datang_exchange
 import modules.auto_harvest as auto_harvest
 import modules.auto_draw_module as auto_draw_module
 import modules.eat_stone as eat_stone  
+import modules.auto_login as auto_login  # 多账号自动登录模块
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -55,13 +57,13 @@ class MainWindow(QMainWindow):
     def on_module_file_changed(self, path):
         """当 modules 目录下的 python 文件修改保存时触发自动热加载"""
         filename = os.path.basename(path)
-        print(f"🔥 检测到文件修改: {filename}，正在热更新...")
+        print(f"检测到文件修改: {filename}，正在热更新...")
 
         try:
             if filename == "transport_materials.py":
                 importlib.reload(transport_materials)
                 self.rebuild_sub_module("transport")
-                self.rebuild_sub_module("transport_multi") # 同时支持多窗口运送物资热重载
+                self.rebuild_sub_module("transport_multi") 
             elif filename == "datang_exchange.py":
                 importlib.reload(datang_exchange)
                 self.rebuild_sub_module("datang")
@@ -74,13 +76,16 @@ class MainWindow(QMainWindow):
             elif filename == "auto_draw_module.py":
                 importlib.reload(auto_draw_module)
                 self.rebuild_sub_module("draw")
+            elif filename == "auto_login.py":
+                importlib.reload(auto_login)
+                self.rebuild_sub_module("auto_login_multi")
 
             if os.path.exists(path) and path not in self.watcher.files():
                 self.watcher.addPath(path)
 
-            print(f"✅ 模块 {filename} 热更新成功！")
+            print(f"模块 {filename} 热更新成功！")
         except Exception as e:
-            print(f"❌ 模块 {filename} 热更新失败: {e}")
+            print(f"模块 {filename} 热更新失败: {e}")
 
     def rebuild_sub_module(self, module_type):
         """重新实例化修改后的模块组件并替换界面 UI"""
@@ -88,19 +93,18 @@ class MainWindow(QMainWindow):
             old_index = 0
             self.single_sub_tabs.removeTab(old_index)
             self.transport_module = transport_materials.TransportModule()
-            self.single_sub_tabs.insertTab(old_index, self.transport_module, "📦 运送物资任务 (单开)")
+            self.single_sub_tabs.insertTab(old_index, self.transport_module, "运送物资任务 (单开)")
             self.single_sub_tabs.setCurrentIndex(old_index)
             if self.single_hwnd:
                 self.transport_module.set_hwnd(self.single_hwnd)
                 self.transport_module.set_char_id(self.single_char_id)
 
         elif module_type == "transport_multi":
-            # 重建多窗口工具集中的运送物资模块
             index = self.multi_sub_tabs.indexOf(self.transport_multi_module)
             if index != -1:
                 self.multi_sub_tabs.removeTab(index)
                 self.transport_multi_module = transport_materials.TransportModule()
-                self.multi_sub_tabs.insertTab(index, self.transport_multi_module, "📦 运送物资任务 (多开 1600x900)")
+                self.multi_sub_tabs.insertTab(index, self.transport_multi_module, "运送物资任务 (多开 1600x900)")
                 if self.multi_hwnd_list:
                     self.transport_multi_module.set_hwnd_list(self.multi_hwnd_list)
 
@@ -108,7 +112,7 @@ class MainWindow(QMainWindow):
             old_index = 1
             self.single_sub_tabs.removeTab(old_index)
             self.datang_module = datang_exchange.DatangExchangeModule()
-            self.single_sub_tabs.insertTab(old_index, self.datang_module, "🔄 大唐物资兑换")
+            self.single_sub_tabs.insertTab(old_index, self.datang_module, "大唐物资兑换")
             if self.single_hwnd:
                 self.datang_module.set_hwnd(self.single_hwnd)
                 self.datang_module.set_char_id(self.single_char_id)
@@ -117,7 +121,7 @@ class MainWindow(QMainWindow):
             old_index = 2
             self.single_sub_tabs.removeTab(old_index)
             self.harvest_module = auto_harvest.HarvestModule()
-            self.single_sub_tabs.insertTab(old_index, self.harvest_module, "🌿 自动收菜任务")
+            self.single_sub_tabs.insertTab(old_index, self.harvest_module, "自动收菜任务")
             if self.single_hwnd:
                 self.harvest_module.set_hwnd(self.single_hwnd)
                 self.harvest_module.set_char_id(self.single_char_id)
@@ -126,7 +130,7 @@ class MainWindow(QMainWindow):
             old_index = 3
             self.single_sub_tabs.removeTab(old_index)
             self.eat_stone_module = eat_stone.EatStoneModule()
-            self.single_sub_tabs.insertTab(old_index, self.eat_stone_module, "💎 吃石头任务")
+            self.single_sub_tabs.insertTab(old_index, self.eat_stone_module, "吃石头任务")
             if self.single_hwnd:
                 self.eat_stone_module.set_hwnd(self.single_hwnd)
                 self.eat_stone_module.set_char_id(self.single_char_id)
@@ -136,9 +140,16 @@ class MainWindow(QMainWindow):
             if index != -1:
                 self.multi_sub_tabs.removeTab(index)
                 self.auto_draw_module = auto_draw_module.AutoDrawModule()
-                self.multi_sub_tabs.insertTab(index, self.auto_draw_module, "🎯 自动循环点击 (多开)")
+                self.multi_sub_tabs.insertTab(index, self.auto_draw_module, "自动循环点击 (多开)")
                 if self.multi_hwnd_list:
                     self.auto_draw_module.set_hwnd_list(self.multi_hwnd_list)
+
+        elif module_type == "auto_login_multi":
+            index = self.multi_sub_tabs.indexOf(self.auto_login_module)
+            if index != -1:
+                self.multi_sub_tabs.removeTab(index)
+                self.auto_login_module = auto_login.AutoLoginModule()
+                self.multi_sub_tabs.insertTab(index, self.auto_login_module, "多账号批量自动登录")
 
     def init_ui(self):
         central_widget = QWidget()
@@ -172,13 +183,13 @@ class MainWindow(QMainWindow):
         self.harvest_module = auto_harvest.HarvestModule()
         self.eat_stone_module = eat_stone.EatStoneModule()
 
-        self.single_sub_tabs.addTab(self.transport_module, "📦 运送物资任务 (单开)")
-        self.single_sub_tabs.addTab(self.datang_module, "🔄 大唐物资兑换")
-        self.single_sub_tabs.addTab(self.harvest_module, "🌿 自动收菜任务")
-        self.single_sub_tabs.addTab(self.eat_stone_module, "💎 吃石头任务")
+        self.single_sub_tabs.addTab(self.transport_module, "运送物资任务 (单开)")
+        self.single_sub_tabs.addTab(self.datang_module, "大唐物资兑换")
+        self.single_sub_tabs.addTab(self.harvest_module, "自动收菜任务")
+        self.single_sub_tabs.addTab(self.eat_stone_module, "吃石头任务")
         single_layout.addWidget(self.single_sub_tabs)
 
-        self.top_tabs.addTab(tab_single, "💻 单窗口工具集")
+        self.top_tabs.addTab(tab_single, "单窗口工具集")
 
         # ----------------- 标签页 2：多窗口工具集 -----------------
         tab_multi = QWidget()
@@ -197,29 +208,31 @@ class MainWindow(QMainWindow):
         multi_bind_layout.addStretch()
         multi_layout.addLayout(multi_bind_layout)
 
-        # 多窗口内部选项卡（包含运送物资多开版、自动点击多开版等）
+        # 多窗口内部选项卡
         self.multi_sub_tabs = QTabWidget()
         self.transport_multi_module = transport_materials.TransportModule()
         self.auto_draw_module = auto_draw_module.AutoDrawModule()
+        self.auto_login_module = auto_login.AutoLoginModule()
 
-        self.multi_sub_tabs.addTab(self.transport_multi_module, "📦 运送物资任务 (多开 1600x900)")
-        self.multi_sub_tabs.addTab(self.auto_draw_module, "🎯 自动循环点击 (多开)")
+        self.multi_sub_tabs.addTab(self.transport_multi_module, "运送物资任务 (多开 1600x900)")
+        self.multi_sub_tabs.addTab(self.auto_draw_module, "自动循环点击 (多开)")
+        self.multi_sub_tabs.addTab(self.auto_login_module, "多账号批量自动登录")
         
         multi_layout.addWidget(self.multi_sub_tabs)
-        self.top_tabs.addTab(tab_multi, "🖥️ 多窗口多开工具集")
+        self.top_tabs.addTab(tab_multi, "多窗口多开工具集")
         
         main_layout.addWidget(self.top_tabs)
 
     def start_delayed_bind(self):
         self.btn_bind_single.setEnabled(False)
         self.countdown_count = 3
-        self.lbl_single_status.setText(f"⏳ 请在 {self.countdown_count} 秒内用鼠标点击切换到您的游戏窗口...")
+        self.lbl_single_status.setText(f"请在 {self.countdown_count} 秒内用鼠标点击切换到您的游戏窗口...")
         self.countdown_timer.start()
 
     def update_countdown(self):
         self.countdown_count -= 1
         if self.countdown_count > 0:
-            self.lbl_single_status.setText(f"⏳ 请在 {self.countdown_count} 秒内用鼠标点击切换到您的游戏窗口...")
+            self.lbl_single_status.setText(f"请在 {self.countdown_count} 秒内用鼠标点击切换到您的游戏窗口...")
         else:
             self.countdown_timer.stop()
             self.execute_bind_window()
@@ -236,7 +249,6 @@ class MainWindow(QMainWindow):
 
             self.single_hwnd = hwnd
             
-            # 绑定时自动将单游戏窗口大小调整为 1600x900
             try:
                 rect = win32gui.GetWindowRect(hwnd)
                 x, y = rect[0], rect[1]
@@ -247,7 +259,7 @@ class MainWindow(QMainWindow):
             char_id = self.get_character_id_by_anchor(hwnd)
             self.single_char_id = char_id if char_id else "SP三月七"
 
-            status_text = f"已绑定单窗口: [{title}]  |  👤 角色ID: {self.single_char_id}"
+            status_text = f"已绑定单窗口: [{title}]  |  角色ID: {self.single_char_id}"
             self.lbl_single_status.setText(status_text)
             
             for module in [self.transport_module, self.datang_module, self.harvest_module, self.eat_stone_module]:
@@ -341,7 +353,6 @@ class MainWindow(QMainWindow):
         self.multi_hwnd_list = valid_hwnds
         self.lbl_multi_status.setText(f"已成功绑定多开窗口数: {len(valid_hwnds)} 个")
         
-        # 将多开窗口句柄列表分发给多窗口工具集中的各个子模块
         if hasattr(self.transport_multi_module, "set_hwnd_list"):
             self.transport_multi_module.set_hwnd_list(valid_hwnds)
         if hasattr(self.auto_draw_module, "set_hwnd_list"):

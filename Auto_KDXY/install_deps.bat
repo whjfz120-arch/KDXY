@@ -38,8 +38,7 @@ echo ========================================================
 echo [步骤 2/2] 正在安装项目所需的第三方依赖库...
 echo (包含: PySide6, opencv-python, numpy, pywin32, Pillow, easyocr)
 echo ========================================================
-pip install PySide6 opencv-python numpy pywin32 Pillow easyocr -i https://pypi.tuna.tsinghua.edu.cn/simple
-
+pip install PySide6 opencv-python numpy pywin32 Pillow pyautogui easyocr -i https://pypi.tuna.tsinghua.edu.cn/simple
 echo.
 echo ========================================================
 echo   🎉 所有环境与依赖库安装流程已执行完毕！

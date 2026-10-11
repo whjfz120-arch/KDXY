@@ -42,10 +42,7 @@ class AutoDrawWorker(QThread):
 
     def find_and_click_target(self, hwnd):
         """在单个窗口中查找目标图片并右键点击"""
-        # 获取当前脚本所在目录 (F:\KDXY-main\Auto_KDXY\modules)
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # 通过 ".." 回退到上一级目录 (F:\KDXY-main\Auto_KDXY)，再找到 assets\chouchou.png
         template_path = os.path.abspath(os.path.join(current_dir, "..", "assets", "chouchou.png"))
         
         if not os.path.exists(template_path):
@@ -123,15 +120,14 @@ class AutoDrawModule(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("🖥️ 多窗口循环自动化操作控制台 (集成 1280x720 平铺与循环点击)"))
+        layout.addWidget(QLabel("🖥️ 多窗口循环自动化操作控制台 (集成 680x480 平铺与循环点击)"))
         self.lbl_status = QLabel("当前已载入多开窗口数: 0 个")
         layout.addWidget(self.lbl_status)
         
         # 按钮布局区
         btn_layout = QHBoxLayout()
         
-        # 新增：集成在模块内部的一键平铺按钮
-        self.btn_arrange = QPushButton("📐 一键平铺 (1280x720)")
+        self.btn_arrange = QPushButton("📐 一键平铺 (680x480)")
         self.btn_arrange.clicked.connect(self.arrange_windows)
         btn_layout.addWidget(self.btn_arrange)
 
@@ -151,30 +147,71 @@ class AutoDrawModule(QWidget):
         layout.addWidget(self.log_box)
 
     def arrange_windows(self):
-        """在此模块内部实现一键平铺排列并固定分辨率为 1280x720"""
+        """全量平铺排列，固定客户区分辨率为 680x480，并针对拒绝访问异常给出提示"""
         if not self.hwnd_list:
             QMessageBox.warning(self, "排列提示", "尚未绑定任何多开游戏窗口！请先在上方的多开工具集中进行窗口绑定。")
             return
         
-        screen = QApplication.primaryScreen().geometry()
-        cols = 2 if len(self.hwnd_list) <= 4 else 3
-        win_w, win_h = 1280, 720  # 固定分辨率宽度和高度为 1280x720
+        screen = QApplication.primaryScreen().availableGeometry()
+        screen_w = screen.width()
+        
+        target_client_w, target_client_h = 680, 480  # 目标客户区大小
+        
+        # 动态计算边框差值
+        frame_w, frame_h = 16, 39
+        for hwnd_sample in self.hwnd_list:
+            if win32gui.IsWindow(hwnd_sample):
+                try:
+                    window_rect = win32gui.GetWindowRect(hwnd_sample)
+                    client_rect = win32gui.GetClientRect(hwnd_sample)
+                    fw = (window_rect[2] - window_rect[0]) - (client_rect[2] - client_rect[0])
+                    fh = (window_rect[3] - window_rect[1]) - (client_rect[3] - client_rect[1])
+                    if fw > 0 and fh > 0:
+                        frame_w, frame_h = fw, fh
+                        break
+                except Exception:
+                    pass
 
+        win_w = target_client_w + frame_w
+        win_h = target_client_h + frame_h
+
+        # 动态计算列数（支持8个及以上窗口自适应多列）
+        cols = max(2, screen_w // win_w)
+        if len(self.hwnd_list) >= 8 and (4 * win_w) <= screen_w:
+            cols = 4
+
+        success_count = 0
+        access_denied_flag = False
+        
         for index, hwnd in enumerate(self.hwnd_list):
-            if win32gui.IsWindow(hwnd):
+            try:
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
                 
-                x = (index % cols) * win_w
-                y = (index // cols) * win_h
+                col = index % cols
+                row = index // cols
                 
-                # 强制调整窗口位置及大小为 1280x720
-                win32gui.SetWindowPos(
-                    hwnd, win32con.HWND_TOP, 
-                    x, y, win_w, win_h, 
-                    win32con.SWP_SHOWWINDOW | win32con.SWP_NOZORDER
-                )
+                x = screen.left() + col * win_w
+                y = screen.top() + row * win_h
+                
+                win32gui.MoveWindow(hwnd, x, y, win_w, win_h, True)
+                success_count += 1
+            except Exception as e:
+                print(f"调整窗口 {hwnd} 失败: {e}")
+                if "拒绝访问" in str(e):
+                    access_denied_flag = True
             
-        QMessageBox.information(self, "平铺与分辨率调整完成", f"已成功平铺排列 {len(self.hwnd_list)} 个窗口，并统一分辨率为 1280x720！")
+        if access_denied_flag:
+            QMessageBox.warning(
+                self, 
+                "权限不足提示", 
+                f"成功排列了 {success_count}/{len(self.hwnd_list)} 个窗口。\n\n⚠️ 检测到部分游戏窗口【拒绝访问】！\n这通常是因为游戏以管理员身份运行，而本程序不是。\n请尝试【以管理员身份重新运行您的 Python / IDE】后再试。"
+            )
+        else:
+            QMessageBox.information(
+                self, 
+                "平铺与分辨率调整完成", 
+                f"成功排列了 {success_count}/{len(self.hwnd_list)} 个窗口！\n网格布局: {cols} 列，客户区统一固定为 680x480。"
+            )
 
     def log(self, text): 
         self.log_box.append(f"[{time.strftime('%H:%M:%S')}] {text}")
